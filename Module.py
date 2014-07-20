@@ -9,7 +9,7 @@ import os
 class Module:
     def load_configuration(self):
         config = {}
-        config_path = '%s/network.json' % (
+        config_path = '%s/configs/network.json' % (
             os.path.dirname(os.path.abspath(__file__))
         )
 
