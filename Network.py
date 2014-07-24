@@ -16,12 +16,17 @@ class Network(asyncio.Protocol):
             self.__peer = str(peer)
 
         Log.debug('Network: client connect (%s)' % self.__peer)
-        EventManager.trigger('network_connect')
+        EventManager.trigger(
+            'network_connect',
+            transport=transport,
+            peer=self.__peer,
+        )
+
+    def connection_lost(self, exc):
+        Log.debug('Network: client disconect (%s)' % self.__peer)
+        EventManager.trigger('network_disconect')
 
     def data_received(self, data):
         Log.debug('Network: receve (%s)' % self.__peer)
         self.__transport.write(data)
 
-    def connection_lost(self, exc):
-        Log.debug('Network: client disconect (%s)' % self.__peer)
-        EventManager.trigger('network_disconect')
