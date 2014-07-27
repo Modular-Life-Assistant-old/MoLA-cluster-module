@@ -7,6 +7,10 @@ import json
 import os
 
 class Module:
+    def __init__(self):
+        EventManager.bind('network_connect', self.__event_network_connect)
+        self.__transport_list = []
+
     def load_configuration(self):
         config = {}
         config_path = '%s/configs/network.json' % (
@@ -19,8 +23,10 @@ class Module:
 
         self.__port = config['port'] if 'port' in config else 14211
 
-    def send(self):
-        pass
+    def send_all(self, data):
+        data = data.encode()
+        for connection in self.__transport_list:
+            connection['transport'].write(data)
 
     def start(self):
         loop = asyncio.get_event_loop()
@@ -32,4 +38,9 @@ class Module:
         Log.debug('Start network on port %d' % self.__port)
         loop.run_until_complete(self.__server)
 
+    def __event_network_connect(self, data):
+        self.__transport_list.append({
+            'host': data['host'],
+            'transport': data['transport'],
+        })
 

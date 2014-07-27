@@ -10,16 +10,18 @@ class Network(asyncio.Protocol):
 
         try:
             self.__peer = "%s:%d" % (peer[0], peer[1])
+            self.__host = peer[0]
 
         except:
             ## eg Unix Domain sockets don't have host/port
-            self.__peer = str(peer)
+            self.__host = self.__peer = str(peer)
 
         Log.debug('Network: client connect (%s)' % self.__peer)
         EventManager.trigger(
             'network_connect',
             transport=transport,
             peer=self.__peer,
+            host=self.__host,
         )
 
     def connection_lost(self, exc):
