@@ -40,7 +40,7 @@ class Module:
 
     def __event_network_connect(self, data):
         self.__transport_list.append({
-            'host': data['host'],
+            'client': data['client'],
             'transport': data['transport'],
         })
 
