@@ -1,19 +1,60 @@
-from core import EventManager
-from core import Log
-from .Network import Network
-
-import asyncio
 import json
-import os
+from core import Log
 
-class Module:
-    def __init__(self):
-        EventManager.bind('network_connect', self.__event_network_connect)
-        self.__transport_list = []
+from circuits.node import remote, Node
+from circuits import Component, Event, handler
+import os
+import socket
+import subprocess
+
+
+class Module(Component):
+    __network = '0.0.0.0'
+    __port = 14211
+    __node = None
+    __clients = {}
+
+    def add_peer(self, hostname=None, port=14211, name='', allow_event={}):
+        if not name:
+            name = '%s:%d' % (hostname, port)
+
+        client_channel = self.__node.add(name, hostname, port)
+
+        self.__clients[name] = {
+            'hostname': hostname,
+            'port': port,
+            'name': name,
+            'channel': client_channel,
+            'allow_event': allow_event,
+            'client': self.__node.nodes[name],
+            'connected': False,
+        }
+
+        # bridge event
+        for event in allow_event:
+            for channel in allow_event[event]:
+                @handler(event, channel=channel)
+                def event_handle(manager, *args, **kwargs):
+                    yield(yield self.call(remote(
+                        Event.create(event, *args, **kwargs),
+                        name
+                    )))
+                self.addHandler(event_handle)
+
+        @handler('connected', channel=client_channel)
+        def connected(self, host, port):
+            self.__clients[name]['connected'] = True
+            Log.debug('Connected to %s:%d' % (host, port))
+        self.addHandler(connected)
+
+        @handler('disconnected', channel=client_channel)
+        def disconnected(self):
+            self.__clients[name]['connected'] = False
+            Log.debug('disconnected to %s' % name)
+        self.addHandler(disconnected)
 
     def load_configuration(self):
-        config = {}
-        config_path = '%s/configs/network.json' % (
+        config_path = '%s/configs/cluster.json' % (
             os.path.dirname(os.path.abspath(__file__))
         )
 
@@ -21,26 +62,126 @@ class Module:
             with open(config_path) as config_file:
                 config = json.load(config_file)
 
-        self.__port = config['port'] if 'port' in config else 14211
+                if 'port' in config:
+                    self.__port = config['port']
 
-    def send_all(self, data):
-        data = data.encode()
-        for connection in self.__transport_list:
-            connection['transport'].write(data)
+                if 'network' in config:
+                    self.__network = config['network']
 
-    def start(self):
-        loop = asyncio.get_event_loop()
-        self.__server = loop.create_server(
-            Network,
-            '0.0.0.0',
-            self.__port,
+    def load_peer(self):
+        conf_path = '%s/configs/peer/' % \
+                    os.path.dirname(os.path.abspath(__file__))
+        nb = 0
+
+        if os.path.isdir(conf_path):
+            for hostname in os.listdir(conf_path):
+                if not os.path.exists(conf_path + hostname) \
+                        or hostname[0] == '.':
+                    continue
+
+                with open(conf_path + hostname) as config_file:
+                    self.add_peer(**json.load(config_file))
+                    nb += 1
+
+        Log.debug('%d peer load' % nb)
+
+    def save_configuration(self):
+        config_path = '%s/configs/cluster.json' % (
+            os.path.dirname(os.path.abspath(__file__))
         )
-        Log.debug('Start network on port %d' % self.__port)
-        loop.run_until_complete(self.__server)
 
-    def __event_network_connect(self, data):
-        self.__transport_list.append({
-            'client': data['client'],
-            'transport': data['transport'],
-        })
+        with open(config_path, 'w+') as config_file:
+            config_file.write(json.dumps({
+                'network': self.__network,
+                'port': self.__port,
+            }))
 
+    def started(self, component):
+        self.load_configuration()
+
+        options = {}
+        # options = self.__get_cert_param()
+        options['server_event_firewall'] = self.__server_event_is_allow
+        options['client_event_firewall'] = self.__client_event_is_allow
+
+        try:
+            self.__node = Node(
+                (self.__network, self.__port),
+                **options
+            ).register(self)
+
+        except socket.error as e:
+            Log.error('socket server error: %s' % e)
+            self.__node = Node(**options).register(self)
+
+        self.load_peer()
+        self.save_configuration()
+
+    def __client_event_is_allow(self, event, client_name, channel):
+        if not client_name in self.__clients:
+            Log.error('client "%s" unknown' % client_name)
+            return False
+
+        allow_event = self.__clients[client_name]['allow_event']
+
+        for e in event.args:
+            if not e.name in allow_event:
+                Log.error('event "%s" not allow for %s client' % (
+                    e.name,
+                    client_name
+                ))
+                return False
+
+            if not channel in allow_event[e.name] and \
+                    not '*' in allow_event[e.name]:
+                Log.error('channel %s (event "%s") not allow for %s client' % (
+                    channel,
+                    e.name,
+                    client_name
+                ))
+                return False
+
+        return True
+
+    @handler('connect', channel='node')
+    def __server_peer_connect(self, sock, host, port):
+        Log.debug('Peer connect : %s' % host)
+
+    @handler('disconnect', channel='node')
+    def __server_peer_disconnect(self, sock):
+        Log.debug('Peer disconect : %s' % str(sock))
+
+    @handler('ready', channel='node')
+    def __server_ready(self, server, bind):
+        Log.debug('Start MoLa network : %s:%d' % bind)
+
+    def __server_event_is_allow(self, event, sock):
+        # TODO
+        return True
+
+    def __get_cert_param(self):
+        cert_dir_path = '%s/cert/' % \
+                        os.path.dirname(os.path.abspath(__file__))
+
+        certfile_path = '%sserver.crt' % cert_dir_path
+        keyfile_path = '%sserver.key' % cert_dir_path
+
+        if not os.path.isdir(cert_dir_path):
+            Log.info('Create certificate')
+            os.mkdir(cert_dir_path)
+
+            Log.debug(subprocess.Popen(
+                'openssl genrsa -out %s 2048 &&'
+                'openssl req -new -x509 -key %s -out %s -days 3650 -subj /CN=MoLA' % \
+                    (keyfile_path, keyfile_path, certfile_path),
+                shell=True,
+            ))
+
+        return {
+            'secure': True,
+            'certfile': certfile_path,
+            'keyfile': keyfile_path,
+            #'cert_reqs': CERT_NONE,
+            #'ssl_version': PROTOCOL_SSLv23,
+            #'ca_certs': None,
+        }
