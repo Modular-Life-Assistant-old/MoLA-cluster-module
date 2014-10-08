@@ -54,4 +54,6 @@ docs/_build/
 
 #MoLA module
 disable
+cert/*
+configs/cluster.json
 
