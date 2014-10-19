@@ -2,7 +2,7 @@ import json
 from core import Log
 
 from circuits.node import remote, Node
-from circuits import Component, Event, handler
+from circuits import Component, Event, handler, Timer
 import os
 import socket
 import subprocess
@@ -31,14 +31,11 @@ class Module(Component):
         }
 
         # bridge event
-        for event in allow_event:
-            for channel in allow_event[event]:
-                @handler(event, channel=channel)
-                def event_handle(manager, *args, **kwargs):
-                    yield(yield self.call(remote(
-                        Event.create(event, *args, **kwargs),
-                        name
-                    )))
+        for event_name in allow_event:
+            for channel in allow_event[event_name]:
+                @handler(event_name, channel=channel)
+                def event_handle(self, event, *args, **kwargs):
+                    yield(yield self.call(remote(event, name)))
                 self.addHandler(event_handle)
 
         @handler('connected', channel=client_channel)
@@ -115,7 +112,20 @@ class Module(Component):
             self.__node = Node(**options).register(self)
 
         self.load_peer()
+        Timer(3, Event.create('update_peer'), persist=True).register(self)
         self.save_configuration()
+
+    def update_peer(self):
+        for name in self.__clients:
+            if not self.__clients[name]['connected']:
+                self.fire(
+                    Event.create(
+                        'connect',
+                        self.__clients[name]['hostname'],
+                        self.__clients[name]['port']
+                    ),
+                    self.__clients[name]['channel']
+                )
 
     def __client_event_is_allow(self, event, client_name, channel):
         if not client_name in self.__clients:
@@ -125,6 +135,9 @@ class Module(Component):
         allow_event = self.__clients[client_name]['allow_event']
 
         for e in event.args:
+            if isinstance(e, str):
+                continue
+
             if not e.name in allow_event:
                 Log.error('event "%s" not allow for %s client' % (
                     e.name,
@@ -157,6 +170,8 @@ class Module(Component):
 
     def __server_event_is_allow(self, event, sock):
         # TODO
+
+        event.cluster_sock = sock
         return True
 
     def __get_cert_param(self):
@@ -185,3 +200,4 @@ class Module(Component):
             #'ssl_version': PROTOCOL_SSLv23,
             #'ca_certs': None,
         }
+
