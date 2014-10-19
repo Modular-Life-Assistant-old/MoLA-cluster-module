@@ -113,7 +113,7 @@ class Module(Component):
 
         self.load_peer()
         Timer(60, Event.create('update_peer'), persist=True).register(self)
-        self.sav_configuration()
+        self.save_configuration()
 
     def update_peer(self):
         for name in self.__clients:
