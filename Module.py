@@ -112,8 +112,8 @@ class Module(Component):
             self.__node = Node(**options).register(self)
 
         self.load_peer()
-        Timer(3, Event.create('update_peer'), persist=True).register(self)
-        self.save_configuration()
+        Timer(60, Event.create('update_peer'), persist=True).register(self)
+        self.sav_configuration()
 
     def update_peer(self):
         for name in self.__clients:
