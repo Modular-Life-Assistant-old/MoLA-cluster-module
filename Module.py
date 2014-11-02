@@ -8,6 +8,23 @@ import socket
 import subprocess
 
 
+class cluster_client(Event):
+    """ parent class
+    """
+    def __init__(self, **kwarg):
+        super(load_alert, self).__init__(**kwarg)
+
+
+class connect_to(Event):
+    """ client connected
+    """
+
+
+class disconnect_to(Event):
+    """ client disconnected
+    """
+
+
 class Module(Component):
     __network = '0.0.0.0'
     __port = 14211
@@ -42,12 +59,14 @@ class Module(Component):
         def connected(self, host, port):
             self.__clients[name]['connected'] = True
             Log.debug('Connected to %s:%d' % (host, port))
+            self.fire(connect_to(**self.__clients[name]))
         self.addHandler(connected)
 
         @handler('disconnected', channel=client_channel)
         def disconnected(self):
             self.__clients[name]['connected'] = False
             Log.debug('disconnected to %s' % name)
+            self.fire(disconnect_to(**self.__clients[name]))
         self.addHandler(disconnected)
 
     def load_configuration(self):
