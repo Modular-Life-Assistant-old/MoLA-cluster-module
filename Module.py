@@ -69,6 +69,8 @@ class Module(Component):
             self.fire(disconnect_to(**self.__clients[name]))
         self.addHandler(disconnected)
 
+        return self.__clients[name]
+
     def load_configuration(self):
         config_path = '%s/configs/cluster.json' % (
             os.path.dirname(os.path.abspath(__file__))
@@ -219,4 +221,5 @@ class Module(Component):
             #'ssl_version': PROTOCOL_SSLv23,
             #'ca_certs': None,
         }
+
 
