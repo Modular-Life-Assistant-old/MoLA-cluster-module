@@ -1,6 +1,8 @@
 {
     "hostname": "mola.treemo.fr",
     "port": 14211,
-    "allow_event": {
+    "event_allowed": {
+        "client_firewall_blocking": ["*"],
+        "server_firewall_blocking": ["*"]
     }
 }
