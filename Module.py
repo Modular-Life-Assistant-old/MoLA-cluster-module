@@ -207,8 +207,9 @@ class Module(Component):
                 client
             )
 
-        if not [i for i in event.channels if i in event_allowed[e.name]] and \
-                not '*' in event_allowed[e.name]:
+        channel_allowed = [i for i in event.channels if i in event_allowed[event.name]]
+        if not channel_allowed and \
+                not '*' in event_allowed[event.name]:
             return 'channel %s (event "%s") not allow for %s client' % (
                 str(event.channels),
                 event.name,
