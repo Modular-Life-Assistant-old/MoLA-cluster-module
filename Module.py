@@ -252,13 +252,15 @@ class Module(Component):
         # convert byte to str
         args = []
         for arg in event.args:
-            args.append(arg.decode('utf-8') if type(arg) == 'byte' else arg)
+            args.append(
+                arg.decode('utf-8') if isinstance(arg, bytes) else arg
+            )
         event.args = args
 
         for i in event.kwargs:
             v = event.kwargs[i]
-            index = i.decode('utf-8') if type(i) == 'byte' else i
-            value = v.decode('utf-8') if type(v) == 'byte' else v
+            index = i.decode('utf-8') if isinstance(i, bytes) else i
+            value = v.decode('utf-8') if isinstance(v, bytes) else v
 
             del(event.kwargs[i])
             event.kwargs[index] = value
