@@ -68,14 +68,14 @@ class Module(Component):
         @handler('connected', channel=client_channel)
         def connected(self, host, port):
             self.__clients[name]['connected'] = True
-            Log.debug('Connected to %s:%d' % (host, port))
+            Log.info('Connected to %s:%d' % (host, port))
             self.fire(connect_to(self.__clients[name]))
         self.addHandler(connected)
 
         @handler('disconnected', channel=client_channel)
         def disconnected(self):
             self.__clients[name]['connected'] = False
-            Log.debug('disconnected to %s' % name)
+            Log.info('Disconnected to %s' % name)
             self.fire(disconnect_to(self.__clients[name]))
         self.addHandler(disconnected)
 
@@ -226,7 +226,7 @@ class Module(Component):
 
     @handler('ready', channel='node')
     def __server_ready(self, server, bind):
-        Log.debug('Start MoLa network : %s:%d' % bind)
+        Log.info('Start MoLa network : %s:%d' % bind)
 
     def __server_event_is_allow(self, event, sock):
         reason = 'unknow (%s, %s)' % (str(event), str(sock)) # event is unallow by default
