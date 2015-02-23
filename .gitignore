@@ -53,7 +53,7 @@ coverage.xml
 docs/_build/
 
 #MoLA module
-disable
+disabled
 cert/*
 configs/cluster.json
 
